@@ -1,0 +1,113 @@
+---
+title: "Final Project"
+author: "Team 13"
+---
+
+```{r}
+# library(tidyverse)
+# library(data.table)
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(pROC)
+library(readr)
+library(gridExtra)
+```
+
+```{r}
+data <- read.csv("Covid Data.csv")
+```
+
+```{r}
+data <- data %>%
+  filter(INTUBED < 97)
+
+data <- data %>%
+  mutate(DATE_DIED = if_else(DATE_DIED == '9999-99-99', 1, 0))  # 1 - Alive, 0 - Died.'
+
+data <- data %>%
+  mutate(CLASIFFICATION_FINAL = if_else(CLASIFFICATION_FINAL < 5, 1, 0))  # 1 - has covid, 0 - not.
+
+# Check for missing values and handle them (e.g., remove or impute)
+cleaned_data <- data
+
+# Convert factor variables to dummy variables
+x <- model.matrix(INTUBED ~ ., cleaned_data)[,-1]
+y <- cleaned_data$INTUBED
+
+# Fit a logistic regression model
+model <- glm(INTUBED ~ CLASIFFICATION_FINAL + OBESITY + ASTHMA + TOBACCO, data = cleaned_data, family = binomial)
+
+# Predict probabilities
+predictions <- predict(model, type = "response")
+
+# Calculate and plot the ROC curve
+roc_curve <- roc(y, predictions)
+
+# Print AUC value
+auc_value <- auc(roc_curve)
+print(paste("AUC =", auc_value))
+
+# Plot ROC curve using ggplot2
+ggroc(roc_curve) + 
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  ggtitle(paste("ROC Curve (AUC =", round(auc_value, 2), ")")) +
+  theme_minimal()
+```
+
+```{r}
+# Distribution of Age Groups
+ggplot(data, aes(x = AGE)) +
+  geom_histogram(binwidth = 5, fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Age Groups", x = "Age", y = "Number of Patients") +
+  theme_minimal()
+
+# Gender Distribution
+gender_counts <- data %>%
+  mutate(SEX = ifelse(SEX == 1, "Male", "Female")) %>%
+  count(SEX)
+
+ggplot(gender_counts, aes(x = "", y = n, fill = SEX)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Gender Distribution", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank())
+
+# Outcome of COVID-19 Patients
+outcome <- data %>%
+  mutate(Outcome = ifelse(DATE_DIED == 1, "Survived", "Deceased")) %>%
+  count(Outcome)
+
+ggplot(outcome, aes(x = "", y = n, fill = Outcome)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Outcome of COVID-19 Patients", x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank())
+
+```
+
+
+
+```{r}
+# Select relevant columns and clean the data
+features <- c("TOBACCO", "OBESITY", "ASTHMA")
+target <- "INTUBED"
+data_clean <- na.omit(data[, c(features, target)])
+
+# Calculate the correlation matrix
+cor_matrix <- cor(data_clean)
+
+# Plot the correlation matrix
+corrplot::corrplot(cor_matrix, method = "color", tl.col = "black", tl.srt = 45, addCoef.col = "black")
+
+# Plotting the relationship between tobacco use and intubation
+ggplot(data_clean, aes(x = as.factor(TOBACCO), fill = as.factor(INTUBED))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Intubation Based on Tobacco Use", x = "Tobacco Use", y = "Count") +
+  scale_fill_discrete(name = "Intubed") +
+  theme_minimal()
+```
+
+
